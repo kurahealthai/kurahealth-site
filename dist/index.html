@@ -347,10 +347,10 @@ footer{border-top:1px solid var(--line);padding:clamp(32px,5vw,50px) 0;backgroun
         <button class="btn btn-primary" type="submit" style="margin-top:19px;width:100%">Continue</button>
         <p style="margin-top:13px;font-size:13px;color:var(--muted);line-height:1.55">We use what you send only to reply. No newsletters, no lists, no sharing.</p>
       </form>
-      <div id="done" hidden>
-        <h3 style="text-align:center;font-size:clamp(19px,2.6vw,24px)">Thanks, <span id="done-name">there</span> — one last step.</h3>
-        <p style="text-align:center;margin-top:12px;font-size:15px;color:var(--ink-2);line-height:1.6">Click below and your email opens with everything filled in. Hitting send is all that's left.</p>
-        <div class="reveal"><a id="mailto" href="#">Open your email to send →</a></div>
+      <div id="done" hidden style="text-align:center">
+        <div style="width:56px;height:56px;border-radius:50%;background:var(--brand-50);color:var(--brand-700);display:grid;place-items:center;margin:4px auto 0;font-size:26px;font-weight:800">✓</div>
+        <h3 style="margin-top:16px;font-size:clamp(19px,2.6vw,24px)">Thanks, <span id="done-name">there</span> — message sent.</h3>
+        <p style="margin-top:12px;font-size:15px;color:var(--ink-2);line-height:1.6">It's with our team now and a real person will reply, usually within a business day.</p>
       </div>
     </div>
   </div>
@@ -390,13 +390,37 @@ footer{border-top:1px solid var(--line);padding:clamp(32px,5vw,50px) 0;backgroun
     if(!n||!e||!o){fail('Please fill in your name, email, and organization.');return;}
     if(!/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(e)){fail('That email address doesn’t look right.');return;}
     if(parseInt(ans,10)!==a+b){fail('The quick check isn’t right — have another go.');return;}
-    var to=['hello','kurahealth.ai'].join('@');
-    var body=['Name: '+n,'Email: '+e,'Organization: '+o,'Programs: '+(pr||'Not specified'),'',
-      (note?'What they would like to see:\n'+note:'No additional notes.'),'','— Sent from kurahealth.ai'].join('\n');
-    document.getElementById('done-name').textContent=n.split(' ')[0]||'there';
-    document.getElementById('mailto').href='mailto:'+to+'?subject='+encodeURIComponent('Demo request — '+o)+'&body='+encodeURIComponent(body);
-    form.hidden=true;
-    var d=document.getElementById('done'); d.hidden=false; d.scrollIntoView({behavior:'smooth',block:'center'});
+    /* Deliver for real. The form POSTs to a form-relay service which emails the team — a static
+       site has no server of its own, and we deliberately do NOT put a public endpoint on the
+       clinical production box. Addresses are assembled at runtime so they are not sitting in the
+       page source for scrapers. */
+    var btn=form.querySelector('button[type=submit]');
+    btn.disabled=true; btn.textContent='Sending…';
+    msg.className='msg'; msg.textContent='';
+    var TO=['gledis','kurahealth.ai'].join('@');
+    var CC=[['manesh','kurahealth.ai'].join('@'),['austin','kurahealth.ai'].join('@')].join(',');
+    var payload={
+      name:n, email:e, organization:o, programs:(pr||'Not specified'),
+      message:(note||'(none)'),
+      _subject:'KuraHealth demo request — '+o,
+      _cc:CC, _captcha:'false', _template:'table'
+    };
+    fetch('https://formsubmit.co/ajax/'+encodeURIComponent(TO),{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Accept':'application/json'},
+      body:JSON.stringify(payload)
+    }).then(function(r){ return r.json().catch(function(){return {}}); })
+      .then(function(res){
+        if(res && (res.success===true || res.success==='true')){
+          document.getElementById('done-name').textContent=n.split(' ')[0]||'there';
+          form.hidden=true;
+          var d=document.getElementById('done'); d.hidden=false; d.scrollIntoView({behavior:'smooth',block:'center'});
+        } else { throw new Error('relay'); }
+      })
+      .catch(function(){
+        btn.disabled=false; btn.textContent='Continue';
+        fail('Sorry — that didn\u2019t send. Please email us directly at '+TO+' and we\u2019ll pick it up.');
+      });
   });
 })();
 </script>
