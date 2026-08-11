@@ -19,12 +19,26 @@ product-led marketing page built around real V2 product screenshots. **Not yet i
 | `KuraHealth-preview.pdf` | One-page PDF export (shadows removed to avoid Quartz grey-blocks). Renders on iPhone Mail but is a tall single page — founder found it "terrible." Avoid. |
 | `HOSTING.md` | **Handoff for Austin** to host `dist/` at `preview.v2.kurahealth.ai`. |
 
-## Sharing — what actually works
-- **HTML attachment:** ❌ blank images on iPhone Mail (data: URIs stripped).
-- **PDF attachment:** ⚠ works but ugly (one giant page).
-- **Hosted link:** ✅ the right answer. Decided: **S3 hosting at `preview.v2.kurahealth.ai`**. Blocked on Austin
-  (the local AWS key is recordings-scoped only — no bucket/CloudFront/ACM/Route53). `HOSTING.md` is the ask.
-  Interim option: **Netlify Drop** (drag `dist/` to app.netlify.com/drop) → instant link, no creds.
+## Where it lives now (2026-08-10)
+
+| | |
+|---|---|
+| **Preview URL** | `https://new.kurahealth.ai/u6ts1tC3vq9i/ovQAJASHSGeLuS/` |
+| **Also on** | GitHub Pages: `kurahealthai.github.io/kurahealth-site` (repo `kurahealthai/kurahealth-site`) |
+| **Deploy** | `./deploy.sh` — uploads `dist/` and invalidates the CDN |
+
+**Why the unguessable path and not `preview.v2.kurahealth.ai`** (Austin's call): a DNS name is an
+announcement — every TLS certificate is published to certificate-transparency logs, and subdomain
+scanners follow. A nested path under an existing certificate leaks nowhere, and candidates can sit
+side by side for comparison. **It is obscurity, not authentication** — anyone with the link can
+read the page, so it stays synthetic-only and off public channels.
+
+**The deploy trap:** the bucket serves objects by their individual ACLs. An upload without
+`--acl public-read` *succeeds* and then serves 403. `deploy.sh` always passes it; don't remove it.
+Cache is up to 24h, so the invalidation step is not optional.
+
+**If you see a CloudFront "403 Request blocked"** that is the WAF, not the site — try without a VPN.
+
 
 ## To regenerate after editing index.html
 - Self-contained: re-run the base64 inline (resize via `sips --resampleWidth 1600` into /tmp/inl, then inline).
