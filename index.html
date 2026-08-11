@@ -148,7 +148,11 @@ header.nav{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.82);
 .verify{margin-top:20px;background:var(--brand-50);border:1px solid #cbe9db;border-radius:13px;padding:17px}
 .verify .q{font-weight:700;font-size:15.5px;color:var(--brand-900)}
 .verify .hint{font-size:13px;color:#3d7a5f;margin-top:5px;line-height:1.5}
-.verify input{margin-top:11px;max-width:210px;background:#fff}
+.verify input{margin-top:12px;max-width:220px;width:100%;background:#fff;font:inherit;font-size:16px;
+  color:var(--ink);border:1px solid #cbe9db;border-radius:11px;padding:12px 14px;min-height:48px;
+  outline:none;-webkit-appearance:none;appearance:none;transition:border-color .15s,box-shadow .15s}
+.verify input:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(11,157,111,.16)}
+.verify input::placeholder{color:#8fb3a3}
 .msg{margin-top:15px;font-size:14.5px;font-weight:600;line-height:1.5}
 .msg.err{color:#b42318}
 .reveal{margin-top:18px;padding:22px;border-radius:13px;background:var(--ink);color:#fff;text-align:center}
@@ -340,8 +344,14 @@ footer{border-top:1px solid var(--line);padding:clamp(32px,5vw,50px) 0;backgroun
 
         <div class="verify">
           <div class="q" id="q-text">Quick check: what is <span id="q-a">3</span> + <span id="q-b">4</span>?</div>
-          <div class="hint">A small human check — it keeps automated messages out of our inbox. Sorry for the extra second.</div>
-          <input type="text" id="f-ans" inputmode="numeric" autocomplete="off" aria-labelledby="q-text" placeholder="Answer">
+          <div class="hint">A quick human check, so our inbox stays for real people.</div>
+          <input type="text" id="f-ans" inputmode="numeric" autocomplete="off" aria-labelledby="q-text" placeholder="Type the answer">
+          <!-- REAL bot protection slot. The sum above is friction, not a defence — a script can read
+               the numbers and add them. Cloudflare Turnstile is the genuine control: free, no puzzle
+               for humans, and verified server-side by the relay, so a bot cannot bypass it by posting
+               around our page. Add data-sitekey and it activates; the submit handler already requires
+               its token whenever a key is present. -->
+          <div id="cf-turnstile" class="cf-turnstile" data-sitekey="" data-theme="light" style="margin-top:12px"></div>
         </div>
         <div id="msg" class="msg" role="status" aria-live="polite"></div>
         <button class="btn btn-primary" type="submit" style="margin-top:19px;width:100%">Continue</button>
@@ -390,6 +400,12 @@ footer{border-top:1px solid var(--line);padding:clamp(32px,5vw,50px) 0;backgroun
     if(!n||!e||!o){fail('Please fill in your name, email, and organization.');return;}
     if(!/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(e)){fail('That email address doesn’t look right.');return;}
     if(parseInt(ans,10)!==a+b){fail('The quick check isn’t right — have another go.');return;}
+    /* When Turnstile is configured, its token is REQUIRED — that is the check a bot cannot fake,
+       because the relay verifies it server-side. Without a site key the widget is absent and the
+       form still works on honeypot + time trap + the human check above. */
+    var tsEl=document.getElementById('cf-turnstile');
+    var tsToken=(document.querySelector('input[name="cf-turnstile-response"]')||{}).value||'';
+    if(tsEl && tsEl.getAttribute('data-sitekey') && !tsToken){ fail('Please complete the verification box.'); return; }
     /* Deliver for real. The form POSTs to a form-relay service which emails the team — a static
        site has no server of its own, and we deliberately do NOT put a public endpoint on the
        clinical production box. Addresses are assembled at runtime so they are not sitting in the
@@ -403,6 +419,7 @@ footer{border-top:1px solid var(--line);padding:clamp(32px,5vw,50px) 0;backgroun
       name:n, email:e, organization:o, programs:(pr||'Not specified'),
       message:(note||'(none)'),
       _subject:'KuraHealth demo request — '+o,
+      'cf-turnstile-response':tsToken,
       _cc:CC, _captcha:'false', _template:'table'
     };
     fetch('https://formsubmit.co/ajax/'+encodeURIComponent(TO),{
