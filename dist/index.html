@@ -406,29 +406,31 @@ footer{border-top:1px solid var(--line);padding:clamp(32px,5vw,50px) 0;backgroun
     var tsEl=document.getElementById('cf-turnstile');
     var tsToken=(document.querySelector('input[name="cf-turnstile-response"]')||{}).value||'';
     if(tsEl && tsEl.getAttribute('data-sitekey') && !tsToken){ fail('Please complete the verification box.'); return; }
-    /* Deliver for real. The form POSTs to a form-relay service which emails the team — a static
-       site has no server of its own, and we deliberately do NOT put a public endpoint on the
-       clinical production box. Addresses are assembled at runtime so they are not sitting in the
-       page source for scrapers. */
+    /* Deliver for real — through OUR OWN endpoint (founder decision 2026-08-10; replaces
+       formsubmit.co, because prospective clients' contact details should not transit a
+       third-party relay). /api/contact is a same-origin path on this site's CDN, backed by an
+       isolated Lambda — NOT the clinical box, so the original objection still stands honored.
+       It validates, rate-limits, re-checks the honeypot server-side, and emails the team via
+       our SES. Same-origin means no CORS, and a relative path survives any future move of this
+       site to another domain. The recipient address now lives server-side only; TO below is
+       kept solely for the visible fallback message when a send fails. */
     var btn=form.querySelector('button[type=submit]');
     btn.disabled=true; btn.textContent='Sending…';
     msg.className='msg'; msg.textContent='';
     var TO=['gledis','kurahealth.ai'].join('@');
-    var CC=[['manesh','kurahealth.ai'].join('@'),['austin','kurahealth.ai'].join('@')].join(',');
     var payload={
       name:n, email:e, organization:o, programs:(pr||'Not specified'),
       message:(note||'(none)'),
-      _subject:'KuraHealth demo request — '+o,
-      'cf-turnstile-response':tsToken,
-      _cc:CC, _captcha:'false', _template:'table'
+      website:pot,
+      'cf-turnstile-response':tsToken
     };
-    fetch('https://formsubmit.co/ajax/'+encodeURIComponent(TO),{
+    fetch('/api/contact',{
       method:'POST',
       headers:{'Content-Type':'application/json','Accept':'application/json'},
       body:JSON.stringify(payload)
     }).then(function(r){ return r.json().catch(function(){return {}}); })
       .then(function(res){
-        if(res && (res.success===true || res.success==='true')){
+        if(res && res.ok===true){
           document.getElementById('done-name').textContent=n.split(' ')[0]||'there';
           form.hidden=true;
           var d=document.getElementById('done'); d.hidden=false; d.scrollIntoView({behavior:'smooth',block:'center'});
